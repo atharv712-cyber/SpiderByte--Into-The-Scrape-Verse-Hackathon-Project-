@@ -21,6 +21,8 @@ from pydantic import BaseModel
 from typing import Optional
 from supabase import create_client, Client
 from dotenv import load_dotenv
+import subprocess
+import json
 
 load_dotenv()
 
@@ -84,3 +86,61 @@ def create_log(log: ScraperLogCreate):
         return {"data": response.data}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+    import subprocess
+import json
+
+class ScraperFromPrompt(BaseModel):
+    prompt: str
+    target_url: str
+
+@app.post("/api/scrapers/generate")
+def generate_scraper(payload: ScraperFromPrompt):
+    result = subprocess.run(
+        ["powershell", "-ExecutionPolicy", "Bypass", "-File", r"C:\Users\ATHARV\AppData\Roaming\npm\bdata.ps1", "scraper", "create", payload.target_url, payload.prompt, "--json"],
+        capture_output=True,
+        text=True,
+        timeout=900
+    )
+    try:
+        data = json.loads(result.stdout)
+    except json.JSONDecodeError:
+        raise HTTPException(status_code=500, detail=result.stderr or result.stdout)
+
+    if data.get("status") != "done":
+        raise HTTPException(status_code=500, detail=data.get("error", "scraper creation failed"))
+
+    new_scraper = {
+        "name": payload.prompt[:50],
+        "target_url": payload.target_url,
+        "status": "active",
+        "collector_id": data["collector_id"]
+    }
+    response = supabase.table("scrapers").insert(new_scraper).execute()
+    return {"scraper": response.data[0], "view_url": data.get("view_url")}
+
+@app.post("/api/scrapers/{collector_id}/run")
+def run_scraper(collector_id: str, target_url: str):
+    result = subprocess.run(
+        ["powershell", "-ExecutionPolicy", "Bypass", "-File", r"C:\Users\ATHARV\AppData\Roaming\npm\bdata.ps1", "scraper", "run", collector_id, target_url, "--json"],
+        capture_output=True,
+        text=True,
+        timeout=300
+    )
+    try:
+        return json.loads(result.stdout)
+    except json.JSONDecodeError:
+        raise HTTPException(status_code=500, detail=result.stderr or result.stdout)
+
+@app.post("/api/scrapers/{collector_id}/heal")
+def heal_scraper(collector_id: str, prompt: str = ""):
+    result = subprocess.run(
+        ["powershell", "-ExecutionPolicy", "Bypass", "-File", r"C:\Users\ATHARV\AppData\Roaming\npm\bdata.ps1", "scraper", "heal", collector_id, prompt, "--json"],
+        capture_output=True,
+        text=True,
+        timeout=900
+    )
+    try:
+        return json.loads(result.stdout)
+    except json.JSONDecodeError:
+        raise HTTPException(status_code=500, detail=result.stderr or result.stdout)

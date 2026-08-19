@@ -35,21 +35,21 @@ function ScraperCard({ scraper }: { scraper: Scraper }) {
   }
 
   async function handleHeal() {
-    setHealing(true);
-    setResult(null);
-    try {
-      const res = await fetch(
-        `http://localhost:8000/api/scrapers/${scraper.collector_id}/heal`,
-        { method: "POST" }
-      );
-      const data = await res.json();
-      setResult(JSON.stringify(data, null, 2));
-      setShowHealField(false);
-    } catch (err) {
-      setResult("Heal failed: " + (err as Error).message);
-    }
-    setHealing(false);
+  setHealing(true);
+  setResult(null);
+  try {
+    const res = await fetch(
+      `http://localhost:8000/api/scrapers/${scraper.collector_id}/heal?prompt=${encodeURIComponent(healPrompt)}`,
+      { method: "POST" }
+    );
+    const data = await res.json();
+    setResult(JSON.stringify(data, null, 2));
+    setShowHealField(false);
+  } catch (err) {
+    setResult("Heal failed: " + (err as Error).message);
   }
+  setHealing(false);
+}
 
   return (
     <div className="card">
