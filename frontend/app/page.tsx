@@ -13,43 +13,55 @@ interface Scraper {
 
 function ScraperCard({ scraper }: { scraper: Scraper }) {
   const [running, setRunning] = useState(false);
-  const [healing, setHealing] = useState(false);
-  const [healPrompt, setHealPrompt] = useState("");
-  const [showHealField, setShowHealField] = useState(false);
-  const [result, setResult] = useState<string | null>(null);
+const [healing, setHealing] = useState(false);
+const [healPrompt, setHealPrompt] = useState("");
+const [showHealField, setShowHealField] = useState(false);
+const [result, setResult] = useState<string | null>(null);
+const [runController, setRunController] = useState<AbortController | null>(null);
 
-  async function handleRun() {
-    setRunning(true);
+async function handleRun() {
+  setRunning(true);
+  setResult(null);
+  const controller = new AbortController();
+  setRunController(controller);
+  try {
+    const res = await fetch(
+      `http://localhost:8000/api/scrapers/${scraper.collector_id}/run?target_url=${encodeURIComponent(scraper.target_url)}`,
+      { method: "POST", signal: controller.signal }
+    );
+    const data = await res.json();
+    setResult(JSON.stringify(data, null, 2));
+  } catch (err) {
+    if ((err as Error).name === "AbortError") {
+      setResult("Run cancelled.");
+    } else {
+      setResult("Run failed: " + (err as Error).message);
+    }
+  }
+  setRunning(false);
+  setRunController(null);
+}
+
+function handleCancelRun() {
+  runController?.abort();
+}
+
+  async function handleHeal() {
+    setHealing(true);
     setResult(null);
     try {
       const res = await fetch(
-        `http://localhost:8000/api/scrapers/${scraper.collector_id}/run?target_url=${encodeURIComponent(scraper.target_url)}`,
+        `http://localhost:8000/api/scrapers/${scraper.collector_id}/heal?prompt=${encodeURIComponent(healPrompt)}`,
         { method: "POST" }
       );
       const data = await res.json();
       setResult(JSON.stringify(data, null, 2));
+      setShowHealField(false);
     } catch (err) {
-      setResult("Run failed: " + (err as Error).message);
+      setResult("Heal failed: " + (err as Error).message);
     }
-    setRunning(false);
+    setHealing(false);
   }
-
-  async function handleHeal() {
-  setHealing(true);
-  setResult(null);
-  try {
-    const res = await fetch(
-      `http://localhost:8000/api/scrapers/${scraper.collector_id}/heal?prompt=${encodeURIComponent(healPrompt)}`,
-      { method: "POST" }
-    );
-    const data = await res.json();
-    setResult(JSON.stringify(data, null, 2));
-    setShowHealField(false);
-  } catch (err) {
-    setResult("Heal failed: " + (err as Error).message);
-  }
-  setHealing(false);
-}
 
   return (
     <div className="card">
@@ -60,26 +72,35 @@ function ScraperCard({ scraper }: { scraper: Scraper }) {
           {scraper.status}
         </span>
       </div>
-      <div className="card-url">{scraper.target_url}</div>
+
+      <div className="card-field">
+        <span className="card-label">URL</span>
+        <div className="card-url">{scraper.target_url}</div>
+      </div>
+
       {scraper.collector_id && (
         <div className="card-collector">{scraper.collector_id}</div>
       )}
+
       <div className="card-actions">
         {scraper.collector_id && (
           <>
-            <button className="btn-outline" onClick={handleRun} disabled={running}>
-              {running ? "Running..." : "Run"}
+            <button className="uiverse-button" onClick={handleRun} disabled={running}>
+              <div className="uiverse-blob1"></div>
+              <div className="uiverse-inner">{running ? "Running..." : "Run"}</div>
             </button>
             <button
-              className="btn-outline"
+              className="uiverse-button"
               onClick={() => setShowHealField(!showHealField)}
               disabled={healing}
             >
-              {healing ? "Healing..." : "Heal"}
+              <div className="uiverse-blob1"></div>
+              <div className="uiverse-inner">{healing ? "Healing..." : "Heal"}</div>
             </button>
           </>
         )}
       </div>
+
       {showHealField && (
         <div className="heal-field">
           <div className="field">
@@ -95,7 +116,18 @@ function ScraperCard({ scraper }: { scraper: Scraper }) {
           </button>
         </div>
       )}
-      {result && <div className="result-box">{result}</div>}
+
+      <div className="card-output">
+        {(running || healing) && (
+          <div className="generating-note">
+            <span className="pulse-dot"></span>
+            {running ? "Running scraper..." : "Healing scraper..."}
+          </div>
+        )}
+        {!running && !healing && result && (
+          <pre className="output-json">{result}</pre>
+        )}
+      </div>
     </div>
   );
 }
@@ -111,19 +143,29 @@ export default function Home() {
   const [creating, setCreating] = useState(false);
   const [createError, setCreateError] = useState<string | null>(null);
 
-  function loadScrapers() {
-    setLoading(true);
-    fetch("http://localhost:8000/api/scrapers")
-      .then((res) => res.json())
-      .then((data) => {
-        setScrapers(data.data);
-        setLoading(false);
-      })
-      .catch((err) => {
-        setError(err.message);
-        setLoading(false);
-      });
+  async function loadScrapers() {
+  try {
+    const res = await fetch("http://localhost:8000/api/scrapers");
+    const data = await res.json();
+
+    // Check if data is directly an array
+    if (Array.isArray(data)) {
+      setScrapers(data);
+    } 
+    // Handle nested object response (e.g., { scrapers: [...] } or { data: [...] })
+    else if (Array.isArray(data.scrapers)) {
+      setScrapers(data.scrapers);
+    } else if (Array.isArray(data.data)) {
+      setScrapers(data.data);
+    } else {
+      console.error("API did not return an array:", data);
+      setScrapers([]); // Fallback to empty array to prevent .map() crash
+    }
+  } catch (err) {
+    console.error("Failed to load scrapers:", err);
+    setScrapers([]); // Fallback on fetch error
   }
+}
 
   useEffect(() => {
     loadScrapers();
@@ -170,8 +212,9 @@ export default function Home() {
             <div className="dash-title">Scrapers</div>
             <div className="dash-subtitle">Every scraper you have built or generated, in one place.</div>
           </div>
-          <button className="btn-solid" onClick={() => setShowForm(!showForm)}>
-            {showForm ? "Cancel" : "New Scraper"}
+          <button className="uiverse-button" onClick={() => setShowForm(!showForm)}>
+            <div className="uiverse-blob1"></div>
+            <div className="uiverse-inner">{showForm ? "Cancel" : "New Scraper"}</div>
           </button>
         </div>
 
@@ -201,7 +244,7 @@ export default function Home() {
             {creating && (
               <div className="generating-note">
                 <span className="pulse-dot"></span>
-                This uses Bright Data AI and can take 5 to 10 minutes. Do not close this tab.
+                Hang tight! This uses Bright Data AI and may take 5 to 10 minutes. Do not close this tab.
               </div>
             )}
             {createError && <div className="generating-note">{createError}</div>}

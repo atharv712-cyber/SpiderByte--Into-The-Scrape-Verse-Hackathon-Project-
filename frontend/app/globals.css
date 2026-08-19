@@ -76,3 +76,54 @@ svg{display:block;max-width:100%;}
 
 .empty-state{text-align:center;padding:60px 20px;color:var(--text-2);border:1px dashed var(--border-strong);border-radius:16px;}
 .error-state{color:var(--text-1);background:var(--card);border:1px solid var(--border-strong);border-radius:12px;padding:16px;}
+
+.uiverse-button {
+  cursor: pointer;
+  font-size: 1rem;
+  border-radius: 16px;
+  border: none;
+  padding: 2px;
+  background: radial-gradient(circle 80px at 80% -10%, var(--text-1), var(--surface));
+  position: relative;
+}
+.uiverse-button::after {
+  content: "";
+  position: absolute;
+  width: 65%;
+  height: 60%;
+  border-radius: 120px;
+  top: 0;
+  right: 0;
+  box-shadow: 0 0 20px rgba(242,242,244,0.22);
+  z-index: -1;
+}
+.uiverse-blob1 {
+  position: absolute;
+  width: 70px;
+  height: 100%;
+  border-radius: 16px;
+  bottom: 0;
+  left: 0;
+  background: radial-gradient(circle 60px at 0% 100%, var(--text-2), var(--border-strong), transparent);
+  box-shadow: -10px 10px 30px rgba(255,255,255,0.08);
+}
+.uiverse-inner {
+  padding: 12px 22px;
+  border-radius: 14px;
+  color: var(--text-1);
+  font-family: var(--font-display);
+  font-weight: 600;
+  z-index: 3;
+  position: relative;
+  background: radial-gradient(circle 80px at 80% -50%, var(--card-hover), var(--card));
+}
+.uiverse-inner::before {
+  content: "";
+  width: 100%;
+  height: 100%;
+  left: 0;
+  top: 0;
+  border-radius: 14px;
+  background: radial-gradient(circle 60px at 0% 100%, rgba(242,242,244,0.08), transparent, transparent);
+  position: absolute;
+}
